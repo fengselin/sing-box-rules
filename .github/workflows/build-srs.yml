@@ -1,0 +1,100 @@
+name: Build SRS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "rules/*.json"
+      - ".github/workflows/build-srs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-srs-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SING_BOX_VERSION: "1.13.8"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download sing-box
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${SING_BOX_VERSION}"
+          PACKAGE="sing-box-${VERSION}-linux-amd64"
+          TOOL_DIR="${RUNNER_TEMP}/sing-box"
+
+          mkdir -p "${TOOL_DIR}"
+
+          curl -fL --retry 3 \
+            "https://github.com/SagerNet/sing-box/releases/download/v${VERSION}/${PACKAGE}.tar.gz" \
+            -o "${TOOL_DIR}/sing-box.tar.gz"
+
+          tar -xzf "${TOOL_DIR}/sing-box.tar.gz" \
+            -C "${TOOL_DIR}"
+
+          install -m 0755 \
+            "${TOOL_DIR}/${PACKAGE}/sing-box" \
+            "${TOOL_DIR}/sing-box"
+
+          echo "${TOOL_DIR}" >> "${GITHUB_PATH}"
+          "${TOOL_DIR}/sing-box" version
+
+      - name: Compile rule sets
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          files=(rules/*.json)
+
+          if (( ${#files[@]} == 0 )); then
+            echo "No JSON rule sets found in rules/"
+            exit 1
+          fi
+
+          mkdir -p srs
+
+          # srs/ 只存放自动生成的文件
+          find srs -maxdepth 1 -type f -name '*.srs' -delete
+
+          for file in "${files[@]}"; do
+            name="$(basename "${file}" .json)"
+
+            echo "Compiling ${file} -> srs/${name}.srs"
+
+            sing-box rule-set compile \
+              --output "srs/${name}.srs" \
+              "${file}"
+          done
+
+      - name: Commit generated SRS files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A -- srs/
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "build: update SRS rule sets"
+          git push
