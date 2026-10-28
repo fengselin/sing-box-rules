@@ -2,20 +2,14 @@
   "version": 2,
   "rules": [
     {
-      "domain": [
-        "api.example.com"
-      ]
-    },
-    {
+      "domain": "o4504926511693824.ingest.sentry.io",
       "domain_suffix": [
-        "example.org",
-        "example.net"
-      ]
-    },
-    {
-      "ip_cidr": [
-        "192.0.2.0/24",
-        "2001:db8::/32"
+        "mypikpak.com",
+        "mypikpak.net",
+        "pickpackapp.com",
+        "pikpak.io",
+        "pikpak.me",
+        "pikpakdrive.com"
       ]
     }
   ]
